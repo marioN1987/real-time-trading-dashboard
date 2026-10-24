@@ -95,7 +95,7 @@ wss.on("connection", (ws) => {
       if (ws.readyState !== WebSocket.OPEN) break;
       ws.send(JSON.stringify(createTick(symbol)));
     }
-  }, 10);
+  }, 50);
 
   ws.on("message", (raw) => {
     try {
