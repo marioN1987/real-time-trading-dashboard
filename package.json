@@ -2,11 +2,11 @@
   "name": "real-time-trading-dashboard",
   "version": "1.0.0",
   "description": "Build real-time trading dashboard with React, TypeScript, TailwindCSS, Vite and WebSocket",
-  "main": "server/mock-feed.js",
+  "main": "server/mock-market-data-server.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
-    "dev:server": "node server/mock-feed.js",
+    "dev:server": "node server/mock-market-data-server.js",
     "test": "vitest",
     "lint": "eslint .",
     "start": "npm run lint && npm run test -- --run && npm run build && concurrently -k -n server,client \"npm run dev:server\" \"npm run dev\""
