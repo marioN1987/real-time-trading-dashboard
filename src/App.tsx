@@ -50,15 +50,7 @@ export function App() {
     ws.onmessage = (event) => {
       try {
         const tick = JSON.parse(event.data) as IPriceTick;
-
-        console.log("WebSocket Incoming tick:", tick);
-
         marketDataStore.handleIncomingTick(tick);
-
-        console.log(
-          "WebSocket Cached tick:",
-          marketDataStore.getTickStateBySymbol(tick.symbol),
-        );
       } catch (err) {
         console.error("WebSocket Failed to process market tick:", err);
       }
