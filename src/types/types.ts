@@ -1,6 +1,6 @@
 export interface ITick {
   symbol: string;
-  price: string;
+  price?: string;
   seq: number;
 }
 
