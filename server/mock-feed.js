@@ -18,3 +18,41 @@ for (const base of CURRENCIES) {
     }
   }
 }
+
+function createTick(symbol) {
+  initializeSymbol(symbol);
+
+  const jpy = symbol.includes("JPY");
+  const seq = sequenceTracker.get(symbol) + 1;
+
+  sequenceTracker.set(symbol, seq);
+
+  let currentSeq = seq;
+
+  // Generate few out-of-order ticks.
+  if (Math.random() < 0.05) {
+    currentSeq = Math.max(
+      0,
+      seq - Math.floor(Math.random() * 5) - 1,
+    );
+  }
+
+  const price =
+    priceTracker.get(symbol) +
+    Math.floor(Math.random() * 21) - 10;
+
+  priceTracker.set(symbol, price);
+
+  // JPY pairs are conventionally quoted with fewer decimal places
+  return {
+    symbol,
+    bid: jpy
+      ? (price / 1000).toFixed(3)
+      : (price / 100000).toFixed(5),
+    ask: jpy
+      ? ((price + 30) / 1000).toFixed(3)
+      : ((price + 3) / 100000).toFixed(5),
+    ts: Date.now(),
+    seq: currentSeq,
+  };
+}
