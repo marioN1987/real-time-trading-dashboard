@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from "react";
-import { ISparklineProps } from "../types/types.interface";
+import { ISparklineProps } from "../types/types";
 
 export const Sparkline: React.FC<ISparklineProps> = ({ history }) => {
   if (history.length < 2) {

@@ -1,6 +1,6 @@
 
 import { Decimal } from "decimal.js";
-import { ITickState, IPriceTick, Subscriber } from "../types/types.interface";
+import { ITickState, IPriceTick, Subscriber } from "../types/types";
 
 class MarketDataStore {
   private cache = new Map<string, ITickState>();

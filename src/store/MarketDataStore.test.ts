@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { marketDataStore } from "./MarketDataStore";
-import type { IPriceTick } from "../types/types.interface";
+import type { IPriceTick } from "../types/types";
 
 function createTick(
   overrides: Partial<IPriceTick> = {},

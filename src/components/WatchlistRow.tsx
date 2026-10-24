@@ -1,7 +1,7 @@
 import React, { useSyncExternalStore } from "react";
 import { marketDataStore } from "../store/MarketDataStore";
 import { Sparkline } from "./Sparkline";
-import { RowProps } from "../types/types.interface";
+import { RowProps } from "../types/types";
 
 export const WatchlistRow: React.FC<RowProps> = ({
   symbol,

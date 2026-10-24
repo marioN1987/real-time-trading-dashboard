@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { Decimal } from "decimal.js";
 import { marketDataStore } from "../store/MarketDataStore";
-import { ITicketProps } from "../types/types.interface";
+import { ITicketProps } from "../types/types";
 
 export const OrderTicket: React.FC<ITicketProps> = ({
   initialSymbol,
@@ -56,7 +56,7 @@ export const OrderTicket: React.FC<ITicketProps> = ({
     const priceDelta = livePriceDec.minus(initialPriceDec).abs();
     const allowedToleranceDec = new Decimal(maxTolerance);
 
-    // Enforce Confirmation Guard if price drifted outside configurable slippage limits
+    // Ask confirmation if price is outside limits
     if (priceDelta.gt(allowedToleranceDec)) {
       const proceed = window.confirm(
         `Price changed!\n\n` +
