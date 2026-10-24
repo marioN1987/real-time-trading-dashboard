@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* Tick highlights */
+.highlight-green {
+  background-color: rgba(16, 185, 129, 0.25) !important;
+}
+
+.highlight-red {
+  background-color: rgba(244, 63, 94, 0.25) !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .highlight-green, .highlight-red {
+    background-color: transparent !important;
+    transition: none !important;
+  }
+}
