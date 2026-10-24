@@ -1,14 +1,15 @@
 {
   "name": "real-time-trading-dashboard",
   "version": "1.0.0",
-  "description": "High-throughput Real-Time Trading Dashboard Strategy Build",
+  "description": "Build real-time trading dashboard with React, TypeScript, TailwindCSS, Vite and WebSocket",
   "main": "server/mock-feed.js",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "dev:server": "node server/mock-feed.js",
     "test": "vitest",
-    "start": "npm run lint && npm run test && npm run dev:server && npm run dev"
+    "lint": "eslint .",
+    "start": "npm run lint && npm run test -- --run && npm run build && concurrently -k -n server,client \"npm run dev:server\" \"npm run dev\""
   },
   "repository": {
     "type": "git",
@@ -33,8 +34,13 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@types/ws": "^8.18.2",
+    "@typescript-eslint/eslint-plugin": "^8.72.0",
+    "@typescript-eslint/parser": "^8.72.0",
     "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
     "eslint": "^10.13.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "eslint-plugin-react-refresh": "^0.5.7",
     "vite": "^8.3.5",
     "vitest": "^5.0.5",
     "ws": "^8.22.0"
