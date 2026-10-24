@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ITick, ConnectionStatus, IPriceTick } from "./types/types.interface";
+import { ITick, ConnectionStatus, IPriceTick } from "./types/types";
 import { marketDataStore } from "./store/MarketDataStore";
 import { OrderTicket } from "./components/OrderTick";
 import { Watchlist } from "./components/WatchList";
