@@ -1,4 +1,4 @@
-const { WebSocketServer } = require("ws");
+const { WebSocketServer, WebSocket } = require("ws");
 
 const PORT = 8080;
 const wss = new WebSocketServer({ port: PORT });
@@ -32,7 +32,7 @@ for (const base of CURRENCIES) {
 function initializeSymbol(symbol) {
   if (priceTracker.has(symbol)) return;
 
-  const isJpy = symbol.includes("JPY");
+  const isJpy = symbol.endsWith("JPY");
   const base = symbol.startsWith("EUR")
     ? 108400
     : symbol.startsWith("GBP")
@@ -48,14 +48,14 @@ function initializeSymbol(symbol) {
 function createTick(symbol) {
   initializeSymbol(symbol);
 
-  const jpy = symbol.includes("JPY");
+  const jpy = symbol.endsWith("JPY");
   const seq = sequenceTracker.get(symbol) + 1;
 
   sequenceTracker.set(symbol, seq);
 
   let currentSeq = seq;
 
-  // Generate few out-of-order ticks.
+  // Generate a few out-of-order ticks.
   if (Math.random() < 0.05) {
     currentSeq = Math.max(
       0,
@@ -91,16 +91,59 @@ wss.on("connection", (ws) => {
   const timer = setInterval(() => {
     if (ws.readyState !== WebSocket.OPEN) return;
 
-    const symbols = [...subscriptions];
-    if (symbols.length === 0) return;
+    for (const symbol of subscriptions) {
+      if (ws.readyState !== WebSocket.OPEN) break;
+      ws.send(JSON.stringify(createTick(symbol)));
+    }
+  }, 10);
 
-    const symbol =
-      symbols[Math.floor(Math.random() * symbols.length)];
+  ws.on("message", (raw) => {
+    try {
+      const message = JSON.parse(raw.toString());
 
-    ws.send(JSON.stringify(createTick(symbol)));
-  }, 2.5); //sends a tick every 2.5 milliseconds => 400 ticks per second
+      if (
+        message.type === "subscribe" &&
+        typeof message.symbol === "string"
+      ) {
+        const symbol = message.symbol.trim().toUpperCase();
 
-  // Randomly drop the connection after 25-35 seconds
+        if (!/^[A-Z]{6}$/.test(symbol)) {
+          console.warn("Invalid symbol:", symbol);
+          return;
+        }
+
+        if (!subscriptions.has(symbol) && subscriptions.size >= 200) {
+          console.warn("Subscription limit reached:", symbol);
+          return;
+        }
+
+        const isNew = !subscriptions.has(symbol);
+
+        initializeSymbol(symbol);
+        subscriptions.add(symbol);
+
+        console.log("Subscribed:", symbol);
+
+        // Send a feed data immediately for a new symbol.
+        if (isNew && ws.readyState === WebSocket.OPEN) {
+          const tick = createTick(symbol);
+          ws.send(JSON.stringify(tick));
+          console.log("New Symbol feed data sent:", symbol, tick);
+        }
+      }
+
+      if (
+        message.type === "unsubscribe" &&
+        typeof message.symbol === "string"
+      ) {
+        subscriptions.delete(message.symbol.trim().toUpperCase());
+        console.log("Unsubscribed:", message.symbol);
+      }
+    } catch (error) {
+      console.error("Invalid client message:", error);
+    }
+  });
+
   const disconnectTimer = setTimeout(() => {
     if (ws.readyState === WebSocket.OPEN) {
       console.log("WebSocket for mock feed disconnected.");
