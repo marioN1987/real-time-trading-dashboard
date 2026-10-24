@@ -56,3 +56,39 @@ function createTick(symbol) {
     seq: currentSeq,
   };
 }
+
+wss.on("connection", (ws) => {
+  const subscriptions = new Set(INITIAL_SYMBOLS);
+
+  console.log("WebSocket for mock feed connected.");
+
+  const timer = setInterval(() => {
+    if (ws.readyState !== WebSocket.OPEN) return;
+
+    const symbols = [...subscriptions];
+    if (symbols.length === 0) return;
+
+    const symbol =
+      symbols[Math.floor(Math.random() * symbols.length)];
+
+    ws.send(JSON.stringify(createTick(symbol)));
+  }, 2.5); //sends a tick every 2.5 milliseconds => 400 ticks per second
+
+  // Randomly drop the connection after 25-35 seconds
+  const disconnectTimer = setTimeout(() => {
+    if (ws.readyState === WebSocket.OPEN) {
+      console.log("WebSocket for mock feed disconnected.");
+      ws.terminate();
+    }
+  }, 25000 + Math.random() * 10000);
+
+  ws.on("close", () => {
+    clearInterval(timer);
+    clearTimeout(disconnectTimer);
+    console.log("WebSocket for mock feed disconnected.");
+  });
+
+  ws.on("error", (error) => {
+    console.error("WebSocket error:", error.message);
+  });
+});
