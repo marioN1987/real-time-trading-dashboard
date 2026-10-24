@@ -3,11 +3,21 @@ const { WebSocketServer } = require("ws");
 const PORT = 8080;
 const wss = new WebSocketServer({ port: PORT });
 const SYMBOLS = [];
+const sequenceTracker = new Map();
+const priceTracker = new Map();
 
 const CURRENCIES = [
   "USD", "EUR", "GBP", "JPY", "CHF",
   "AUD", "CAD", "NZD", "SEK", "NOK",
   "SGD", "HKD", "MXN", "ZAR", "TRY",
+];
+
+const INITIAL_SYMBOLS = [
+  "EURUSD",
+  "GBPUSD",
+  "USDJPY",
+  "AUDUSD",
+  "USDCAD",
 ];
 
 // Generate all possible currency pairs (symbols) from the CURRENCIES array
@@ -17,6 +27,22 @@ for (const base of CURRENCIES) {
       SYMBOLS.push(`${base}${quote}`);
     }
   }
+}
+
+function initializeSymbol(symbol) {
+  if (priceTracker.has(symbol)) return;
+
+  const isJpy = symbol.includes("JPY");
+  const base = symbol.startsWith("EUR")
+    ? 108400
+    : symbol.startsWith("GBP")
+      ? 127000
+      : isJpy
+        ? 150240
+        : 100000;
+
+  priceTracker.set(symbol, base);
+  sequenceTracker.set(symbol, 100000);
 }
 
 function createTick(symbol) {
@@ -92,3 +118,5 @@ wss.on("connection", (ws) => {
     console.error("WebSocket error:", error.message);
   });
 });
+
+console.log(`WebSocket server running at ws://localhost:${PORT}`);
