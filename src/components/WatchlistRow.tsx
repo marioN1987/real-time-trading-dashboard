@@ -1,5 +1,5 @@
 import React, { useSyncExternalStore } from "react";
-import { feedDataStore } from "../store/FeedDataStore";
+import { marketDataStore } from "../store/MarketDataStore";
 import { Sparkline } from "./Sparkline";
 import { RowProps } from "../types/types.interface";
 
@@ -13,8 +13,8 @@ export const WatchlistRow: React.FC<RowProps> = ({
   onDragEnd,
 }) => {
   const state = useSyncExternalStore(
-    (cb) => feedDataStore.subscribe(cb),
-    () => feedDataStore.getTickStateBySymbol(symbol),
+    (cb) => marketDataStore.subscribe(cb),
+    () => marketDataStore.getTickStateBySymbol(symbol),
     () => undefined,
   );
 

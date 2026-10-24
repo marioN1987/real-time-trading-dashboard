@@ -4,7 +4,7 @@ import React, {
   useSyncExternalStore,
   useRef,
 } from "react";
-import { feedDataStore } from "../store/FeedDataStore";
+import { marketDataStore } from "../store/MarketDataStore";
 import { WatchlistRow } from "./WatchlistRow";
 
 interface WatchlistProps {
@@ -41,29 +41,29 @@ export const Watchlist: React.FC<WatchlistProps> = ({
   });
 
   const [selected, setSelected] = useState<string | null>(null);
-  const [error, setError] = useState("");
+  const [error, _] = useState("");
   const [inputSymbol, setInputSymbol] = useState("");
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
-  // Sync reordered symbol grids instantly to prevent reload state loss (Requirement 2)
+  // Sync reordered symbol grids instantly to prevent reload state loss
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(symbols));
   }, [symbols]);
 
   useEffect(() => {
-    feedDataStore.reorderSymbols(symbols);
+    marketDataStore.reorderSymbols(symbols);
   }, [symbols]);
 
   // Subscribe to symbol registry modifications from our fast data layer
   useSyncExternalStore(
-    (cb) => feedDataStore.subscribe(cb),
-    () => feedDataStore.getAllSymbols(),
+    (cb) => marketDataStore.subscribe(cb),
+    () => marketDataStore.getAllSymbols(),
     () => [],
   );
 
   useEffect(() => {
     for (const symbol of symbols) {
-      feedDataStore.registerSymbol(symbol);
+      marketDataStore.registerSymbol(symbol);
       onSubscribeSymbol(symbol);
     }
   }, []);
@@ -103,7 +103,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
     }
 
     // Register symbol with the market store
-    feedDataStore.registerSymbol(symbol);
+    marketDataStore.registerSymbol(symbol);
 
     // Add to the UI; your existing useEffect saves localStorage
     setSymbols((prev) => [...prev, symbol]);

@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { ITick, ConnectionStatus, IPriceTick } from "./types/types.interface";
-import { feedDataStore } from "./store/FeedDataStore";
+import { marketDataStore } from "./store/MarketDataStore";
 import { OrderTicket } from "./components/OrderTick";
 import { Watchlist } from "./components/WatchList";
 
@@ -53,11 +53,11 @@ export function App() {
 
         console.log("WebSocket Incoming tick:", tick);
 
-        feedDataStore.handleIncomingTick(tick);
+        marketDataStore.handleIncomingTick(tick);
 
         console.log(
           "WebSocket Cached tick:",
-          feedDataStore.getTickStateBySymbol(tick.symbol),
+          marketDataStore.getTickStateBySymbol(tick.symbol),
         );
       } catch (err) {
         console.error("WebSocket Failed to process market tick:", err);
@@ -70,7 +70,7 @@ export function App() {
 
       wsRef.current = null;
       connectionStatusRef.current = ConnectionStatus.DISCONNECTED;
-      feedDataStore.setDisconnectedState();
+      marketDataStore.setDisconnectedState();
 
       const baseDelay = Math.min(
         1000 * Math.pow(2, reconnectAttempt.current),
@@ -153,11 +153,11 @@ export function App() {
         </section>
 
         <aside className="sticky top-6">
-          {selectedTicket ? (
+          {selectedTicket?.price !== undefined ? (
             <OrderTicket
               key={`${selectedTicket.symbol}-${selectedTicket.seq}`}
               initialSymbol={selectedTicket.symbol}
-              initialPrice={selectedTicket.price}
+              initialPrice={selectedTicket.price ?? "0"}
               initialSeq={selectedTicket.seq}
               maxTolerance="0.00015"
             />

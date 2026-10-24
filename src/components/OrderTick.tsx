@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useSyncExternalStore } from "react";
 import { Decimal } from "decimal.js";
-import { feedDataStore } from "../store/FeedDataStore";
+import { marketDataStore } from "../store/MarketDataStore";
 import { ITicketProps } from "../types/types.interface";
 
 export const OrderTicket: React.FC<ITicketProps> = ({
@@ -11,7 +11,7 @@ export const OrderTicket: React.FC<ITicketProps> = ({
 }) => {
   const [side, setSide] = useState<"BUY" | "SELL">("BUY");
   const [quantity, setQuantity] = useState<string>("10000");
-  const [limitPrice, setLimitPrice] = useState<string>(initialPrice);
+  const [limitPrice, setLimitPrice] = useState<string>(initialPrice ?? "0");
   const [estimatedCost, setEstimatedCost] = useState<string>("0.00");
 
   // Multiplies Quantity * Limit Price using exact base-10 arithmetic to avoid float drift
@@ -32,15 +32,15 @@ export const OrderTicket: React.FC<ITicketProps> = ({
 
   // Subscribe to symbol data modifications
   useSyncExternalStore(
-    (cb) => feedDataStore.subscribe(cb),
-    () => feedDataStore.getAllSymbols(),
+    (cb) => marketDataStore.subscribe(cb),
+    () => marketDataStore.getAllSymbols(),
     () => [],
   );
 
   const handleOrderSubmission = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const latestTickState = feedDataStore.getTickStateBySymbol(initialSymbol);
+    const latestTickState = marketDataStore.getTickStateBySymbol(initialSymbol);
     if (!latestTickState) {
       alert("Execution rejected: Market data pipeline unavailable.");
       return;
