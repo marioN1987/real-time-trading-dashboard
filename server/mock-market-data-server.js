@@ -26,7 +26,7 @@ for (const base of CURRENCIES) {
 }
 
 // Get 200 Instruments
-const UNIQUE_INSTRUMENTS = [...new Set(INSTRUMENTS)].slice(0, 200);
+const UNIQUE_INSTRUMENTS = [...new Set(INSTRUMENTS)].slice(0, 100);
 
 console.log(`Generated ${UNIQUE_INSTRUMENTS.length} instruments.`);
 
