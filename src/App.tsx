@@ -10,6 +10,9 @@ export function App() {
     ConnectionStatus.DISCONNECTED,
   );
 
+  const [availableInstruments, setAvailableInstruments] = useState<string[]>(
+    [],
+  );
   const reconnectAttempt = useRef<number>(0);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<number | null>(null);
@@ -49,7 +52,15 @@ export function App() {
 
     ws.onmessage = (event) => {
       try {
+        const message = JSON.parse(event.data);
+
+        if (message.type === "catalog") {
+          setAvailableInstruments(message.symbols);
+          return;
+        }
+
         const tick = JSON.parse(event.data) as IPriceTick;
+
         marketDataStore.handleIncomingTick(tick);
       } catch (err) {
         console.error("WebSocket Failed to process market tick:", err);
@@ -81,7 +92,7 @@ export function App() {
 
       ws.onerror = (event) => {
         console.error("WebSocket Connection error:", event);
-        // The close handler handles reconnection.
+        // Handles reconnection.
       };
     };
   }, []);
@@ -141,6 +152,7 @@ export function App() {
           <Watchlist
             onSelectInstrument={handleRowSelect}
             onSubscribeSymbol={subscribeSymbol}
+            availableInstruments={availableInstruments}
           />
         </section>
 

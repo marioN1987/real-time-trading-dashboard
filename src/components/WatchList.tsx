@@ -1,72 +1,50 @@
-import React, {
-  useState,
-  useEffect,
-  useSyncExternalStore,
-  useRef,
-} from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { marketDataStore } from "../store/MarketDataStore";
 import { WatchlistRow } from "./WatchlistRow";
 import { IWatchlistProps } from "../types/types";
-import { INITIAL_INSTRUMENTS } from "../helper/helperMethods";
-
-const STORAGE_KEY = "fx_watchlist_layout_config";
 
 export const Watchlist: React.FC<IWatchlistProps> = ({
   onSelectInstrument,
   onSubscribeSymbol,
+  availableInstruments,
 }) => {
-  const [symbols, setSymbols] = useState<string[]>(() => {
-    let cachedSymbols: string[] = [];
-
-    try {
-      //on page refresh symbols are not lost, they are retrieved from local storage
-      const localStorageSaved = localStorage.getItem(STORAGE_KEY);
-      const parsed: unknown = localStorageSaved
-        ? JSON.parse(localStorageSaved)
-        : [];
-
-      if (Array.isArray(parsed)) {
-        cachedSymbols = parsed.filter(
-          (item): item is string => typeof item === "string",
-        );
-      }
-    } catch (error) {
-      console.error("Failed to load symbols from local storage:", error);
-    }
-
-    return [...new Set([...cachedSymbols, ...INITIAL_INSTRUMENTS])].slice(
-      0,
-      200,
-    );
-  });
-
+  const [symbols, setSymbols] = useState<string[]>([]);
+  const initializedRef = useRef(false);
   const [selected, setSelected] = useState<string | null>(null);
   const [error, _] = useState("");
   const [inputSymbol, setInputSymbol] = useState("");
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
-  // Sync reordered symbol grids instantly to prevent reload state loss
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(symbols));
-  }, [symbols]);
+    if (availableInstruments.length === 0) return;
+
+    setSymbols((current) => {
+      // Initialize once from the server catalog.
+      if (!initializedRef.current) {
+        initializedRef.current = true;
+        return availableInstruments;
+      }
+
+      // Keep user-added symbols even if the catalog is received again.
+      const catalog = new Set(availableInstruments);
+      const existingCatalogSymbols = current.filter((s) => catalog.has(s));
+      const customSymbols = current.filter((s) => !catalog.has(s));
+
+      return [...existingCatalogSymbols, ...customSymbols];
+    });
+  }, [availableInstruments]);
 
   useEffect(() => {
     marketDataStore.reorderSymbols(symbols);
   }, [symbols]);
 
-  // Subscribe to symbol registry modifications from our fast data layer
-  useSyncExternalStore(
-    (cb) => marketDataStore.subscribe(cb),
-    () => marketDataStore.getAllSymbols(),
-    () => [],
-  );
-
   useEffect(() => {
     for (const symbol of symbols) {
       marketDataStore.registerSymbol(symbol);
-      onSubscribeSymbol(symbol);
     }
-  }, []);
+
+    marketDataStore.reorderSymbols(symbols);
+  }, [symbols]);
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 

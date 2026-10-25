@@ -1,8 +1,8 @@
+
 const { WebSocketServer, WebSocket } = require("ws");
 
 const PORT = 8080;
 const wss = new WebSocketServer({ port: PORT });
-const SYMBOLS = [];
 const sequenceTracker = new Map();
 const priceTracker = new Map();
 
@@ -12,27 +12,27 @@ const CURRENCIES = [
   "SGD", "HKD", "MXN", "ZAR", "TRY",
 ];
 
-const INITIAL_SYMBOLS = [
-  "EURUSD",
-  "GBPUSD",
-  "USDJPY",
-  "AUDUSD",
-  "USDCAD",
-];
+const INSTRUMENTS = [];
 
 // Generate all possible currency pairs (symbols) from the CURRENCIES array
 for (const base of CURRENCIES) {
   for (const quote of CURRENCIES) {
     if (base !== quote) {
-      SYMBOLS.push(`${base}${quote}`);
+      INSTRUMENTS.push(`${base}${quote}`);
     }
   }
 }
+
+// get 200 Instruments
+const UNIQUE_INSTRUMENTS = [...new Set(INSTRUMENTS)].slice(0, 200);
+
+console.log(`Generated ${UNIQUE_INSTRUMENTS.length} instruments.`);
 
 function initializeSymbol(symbol) {
   if (priceTracker.has(symbol)) return;
 
   const isJpy = symbol.endsWith("JPY");
+
   const base = symbol.startsWith("EUR")
     ? 108400
     : symbol.startsWith("GBP")
@@ -48,14 +48,14 @@ function initializeSymbol(symbol) {
 function createTick(symbol) {
   initializeSymbol(symbol);
 
-  const jpy = symbol.endsWith("JPY");
+  const isJpy = symbol.endsWith("JPY");
   const seq = sequenceTracker.get(symbol) + 1;
 
   sequenceTracker.set(symbol, seq);
 
   let currentSeq = seq;
 
-  // Generate a few out-of-order ticks.
+  // Generate occasional out-of-order ticks.
   if (Math.random() < 0.05) {
     currentSeq = Math.max(
       0,
@@ -69,13 +69,13 @@ function createTick(symbol) {
 
   priceTracker.set(symbol, price);
 
-  // JPY pairs are conventionally quoted with fewer decimal places
+   // JPY pairs are conventionally quoted with fewer decimal places
   return {
     symbol,
-    bid: jpy
+    bid: isJpy
       ? (price / 1000).toFixed(3)
       : (price / 100000).toFixed(5),
-    ask: jpy
+    ask: isJpy
       ? ((price + 30) / 1000).toFixed(3)
       : ((price + 3) / 100000).toFixed(5),
     ts: Date.now(),
@@ -84,15 +84,19 @@ function createTick(symbol) {
 }
 
 wss.on("connection", (ws) => {
-  const subscriptions = new Set(INITIAL_SYMBOLS);
+  const subscriptions = new Set(UNIQUE_INSTRUMENTS);
 
-  console.log("WebSocket for mock feed connected.");
+  ws.send(JSON.stringify({
+    type: "catalog",
+    symbols: UNIQUE_INSTRUMENTS,
+  }));
 
   const timer = setInterval(() => {
     if (ws.readyState !== WebSocket.OPEN) return;
 
     for (const symbol of subscriptions) {
       if (ws.readyState !== WebSocket.OPEN) break;
+
       ws.send(JSON.stringify(createTick(symbol)));
     }
   }, 10);
@@ -105,30 +109,32 @@ wss.on("connection", (ws) => {
         message.type === "subscribe" &&
         typeof message.symbol === "string"
       ) {
-        const symbol = message.symbol.trim().toUpperCase();
+        const symbolUppercase = message.symbol.trim().toUpperCase();
 
-        if (!/^[A-Z]{6}$/.test(symbol)) {
-          console.warn("Invalid symbol:", symbol);
+        // Validate six-letter symbols,
+        if (!/^[A-Z]{6}$/.test(symbolUppercase)) {
+          console.warn("Invalid symbol:", symbolUppercase);
           return;
         }
 
-        if (!subscriptions.has(symbol) && subscriptions.size >= 200) {
-          console.warn("Subscription limit reached:", symbol);
+        if (
+          !subscriptions.has(symbolUppercase) &&
+          subscriptions.size >= 200
+        ) {
+          console.warn("Subscription limit reached:", symbolUppercase);
           return;
         }
 
-        const isNew = !subscriptions.has(symbol);
+        const isNew = !subscriptions.has(symbolUppercase);
 
-        initializeSymbol(symbol);
-        subscriptions.add(symbol);
+        initializeSymbol(symbolUppercase);
+        subscriptions.add(symbolUppercase);
 
-        console.log("Subscribed:", symbol);
+        console.log("Subscribed:", symbolUppercase);
 
-        // Send a feed data immediately for a new symbol.
+        // Send market data for a newly added symbol.
         if (isNew && ws.readyState === WebSocket.OPEN) {
-          const tick = createTick(symbol);
-          ws.send(JSON.stringify(tick));
-          console.log("New Symbol feed data sent:", symbol, tick);
+          ws.send(JSON.stringify(createTick(symbolUppercase)));
         }
       }
 
@@ -136,17 +142,21 @@ wss.on("connection", (ws) => {
         message.type === "unsubscribe" &&
         typeof message.symbol === "string"
       ) {
-        subscriptions.delete(message.symbol.trim().toUpperCase());
-        console.log("Unsubscribed:", message.symbol);
+        const symbol = message.symbol.trim().toUpperCase();
+
+        subscriptions.delete(symbol);
+
+        console.log("Unsubscribed:", symbol);
       }
     } catch (error) {
       console.error("Invalid client message:", error);
     }
   });
 
+  // Produce an occasional disconnect.
   const disconnectTimer = setTimeout(() => {
     if (ws.readyState === WebSocket.OPEN) {
-      console.log("WebSocket for mock feed disconnected.");
+      console.log("Simulated market data server disconnect.");
       ws.terminate();
     }
   }, 25000 + Math.random() * 10000);
@@ -154,12 +164,21 @@ wss.on("connection", (ws) => {
   ws.on("close", () => {
     clearInterval(timer);
     clearTimeout(disconnectTimer);
-    console.log("WebSocket for mock feed disconnected.");
+    console.log("Market data server disconnected.");
   });
 
-  ws.on("error", (error) => {
-    console.error("WebSocket error:", error.message);
+  ws.on("close", (code, reason) => {
+  clearInterval(timer);
+
+  console.log("WebSocket closed:", {
+    code,
+    reason: reason.toString(),
   });
 });
 
-console.log(`WebSocket server running at ws://localhost:${PORT}`);
+  ws.on("error", (error) => {
+    console.error("Market data server error:", error.message);
+  });
+});
+
+console.log(`Market data server running at ws://localhost:${PORT}`);
