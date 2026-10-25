@@ -7,6 +7,7 @@ const wss = new WebSocketServer({ port: PORT });
 const sequenceTracker = new Map();
 const priceTracker = new Map();
 const TICK_INTERVAL = 2; //2 ms up to 500 ticks per second
+const INSTRUMENTS_NO = 200;
 
 const CURRENCIES = [
   "USD", "EUR", "GBP", "JPY", "CHF",
@@ -26,7 +27,7 @@ for (const base of CURRENCIES) {
 }
 
 // Get 200 Instruments
-const UNIQUE_INSTRUMENTS = [...new Set(INSTRUMENTS)].slice(0, 100);
+const UNIQUE_INSTRUMENTS = [...new Set(INSTRUMENTS)].slice(0, INSTRUMENTS_NO);
 
 console.log(`Generated ${UNIQUE_INSTRUMENTS.length} instruments.`);
 
