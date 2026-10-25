@@ -1,3 +1,5 @@
+import { marketDataStore } from "../store/MarketDataStore";
+
 export interface ITick {
   symbol: string;
   price?: string;
@@ -23,6 +25,17 @@ export interface IWatchlistProps {
   serverSessionId: string;
   availableInstruments: string[];
   onSubscribeSymbol: (symbol: string) => void;
+}
+
+export interface IUseMarketDataStreamProps {
+  wsRef: React.RefObject<WebSocket | null>;
+  connectionStatusRef: React.RefObject<ConnectionStatus>;
+  reconnectAttempt: React.RefObject<number>;
+  reconnectTimerRef: React.RefObject<number | null>;
+  subscriptionsRef: React.RefObject<Set<string>>;
+  setAvailableInstruments: (symbols: string[]) => void;
+  setServerSessionId: (sessionId: string) => void;
+  marketDataStore: typeof marketDataStore;
 }
 
 export interface RowProps {

@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { ConnectionStatus, IPriceTick, UseMarketDataStreamProps } from "../types/types";
+import { ConnectionStatus, IPriceTick, IUseMarketDataStreamProps } from "../types/types";
 
 export function useMarketDataStream({
   wsRef,
@@ -10,7 +10,7 @@ export function useMarketDataStream({
   setAvailableInstruments,
   setServerSessionId,
   marketDataStore,
-}: UseMarketDataStreamProps) {
+}: IUseMarketDataStreamProps) {
   const connectStream = useCallback((): void => {
     const ws = new WebSocket("ws://localhost:8080");
 
