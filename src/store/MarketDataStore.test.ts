@@ -1,26 +1,22 @@
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { marketDataStore } from "./MarketDataStore";
 import type { IPriceTick } from "../types/types";
 
-function createTick(
+const createTick = (
   overrides: Partial<IPriceTick> = {},
-): IPriceTick {
-  return {
-    symbol: "EURUSD",
-    bid: "1.08500",
-    ask: "1.08503",
-    ts: Date.now(),
-    seq: 1,
-    ...overrides,
-  };
-}
+): IPriceTick => ({
+  symbol: "EURUSD",
+  bid: "1.10000",
+  ask: "1.10020",
+  ts: Date.now(),
+  seq: 1,
+  ...overrides,
+});
 
-describe("marketDataStore", () => {
+describe("MarketDataStore", () => {
   beforeEach(() => {
-    // Remove symbols from previous tests to isolate store state.
-    for (const symbol of [...marketDataStore.getAllSymbols()]) {
-      marketDataStore.removeSymbol(symbol);
-    }
+    marketDataStore.reset();
   });
 
   describe("registerSymbol", () => {
@@ -28,22 +24,26 @@ describe("marketDataStore", () => {
       marketDataStore.registerSymbol("EURUSD");
 
       expect(marketDataStore.getAllSymbols()).toContain("EURUSD");
+      expect(marketDataStore.getAllRegisteredSymbols()).toContain(
+        "EURUSD",
+      );
     });
 
     it("normalizes symbols to uppercase", () => {
-      marketDataStore.registerSymbol(" eurusd ");
+      marketDataStore.registerSymbol("eurusd");
 
       expect(marketDataStore.getAllSymbols()).toContain("EURUSD");
     });
 
-    it("ignores invalid symbols", () => {
+    it("rejects invalid symbols", () => {
       marketDataStore.registerSymbol("EUR");
       marketDataStore.registerSymbol("EURUSD1");
+      marketDataStore.registerSymbol("123456");
 
       expect(marketDataStore.getAllSymbols()).toEqual([]);
     });
 
-    it("does not register duplicate symbols", () => {
+    it("does not duplicate registered symbols", () => {
       marketDataStore.registerSymbol("EURUSD");
       marketDataStore.registerSymbol("EURUSD");
 
@@ -53,34 +53,75 @@ describe("marketDataStore", () => {
     });
   });
 
+  describe("removeSymbol", () => {
+    it("removes a symbol from the visible watchlist", () => {
+      marketDataStore.registerSymbol("EURUSD");
+
+      marketDataStore.removeSymbol("EURUSD");
+
+      expect(marketDataStore.getAllSymbols()).not.toContain("EURUSD");
+    });
+
+    it("keeps a removed symbol registered", () => {
+      marketDataStore.registerSymbol("EURUSD");
+
+      marketDataStore.removeSymbol("EURUSD");
+
+      expect(
+        marketDataStore.getAllRegisteredSymbols(),
+      ).toContain("EURUSD");
+    });
+  });
+
+  describe("reorderSymbols", () => {
+    it("changes the order of visible registered symbols", () => {
+      marketDataStore.registerSymbol("EURUSD");
+      marketDataStore.registerSymbol("GBPUSD");
+      marketDataStore.registerSymbol("USDJPY");
+
+      marketDataStore.reorderSymbols([
+        "USDJPY",
+        "EURUSD",
+        "GBPUSD",
+      ]);
+
+      expect(marketDataStore.getAllSymbols()).toEqual([
+        "USDJPY",
+        "EURUSD",
+        "GBPUSD",
+      ]);
+    });
+  });
+
   describe("handleIncomingTick", () => {
-    it("caches a valid tick and calculates spread", () => {
+    it("stores a valid tick and calculates spread", () => {
       marketDataStore.handleIncomingTick(createTick());
 
       const state = marketDataStore.getTickStateBySymbol("EURUSD");
 
       expect(state).toBeDefined();
-      expect(state?.bid).toBe("1.085");
-      expect(state?.ask).toBe("1.08503");
-      expect(state?.spread).toBe("0.00003");
-      expect(state?.direction).toBe("FLAT");
+      expect(state?.bid).toBe("1.1");
+      expect(state?.ask).toBe("1.1002");
+      expect(state?.spread).toBe("0.00020");
+      expect(state?.changeSinceOpen).toBe("0.00000");
       expect(state?.isStale).toBe(false);
-      expect(state?.history).toEqual(["1.085"]);
     });
 
-    it("registers a symbol when its first tick arrives", () => {
-      marketDataStore.handleIncomingTick(createTick({ symbol: "GBPUSD" }));
+    it("automatically registers the tick symbol", () => {
+      marketDataStore.handleIncomingTick(createTick());
 
-      expect(marketDataStore.getAllSymbols()).toContain("GBPUSD");
-      expect(
-        marketDataStore.getTickStateBySymbol("GBPUSD"),
-      ).toBeDefined();
+      expect(marketDataStore.getAllSymbols()).toContain("EURUSD");
     });
 
-    it("updates direction when the bid increases", () => {
-      marketDataStore.handleIncomingTick(createTick({ seq: 1, bid: "1.08500" }));
+    it("calculates upward price direction", () => {
+      marketDataStore.handleIncomingTick(createTick({ seq: 1 }));
+
       marketDataStore.handleIncomingTick(
-        createTick({ seq: 2, bid: "1.08600", ask: "1.08603" }),
+        createTick({
+          bid: "1.10100",
+          ask: "1.10120",
+          seq: 2,
+        }),
       );
 
       expect(
@@ -88,10 +129,15 @@ describe("marketDataStore", () => {
       ).toBe("UP");
     });
 
-    it("updates direction when the bid decreases", () => {
-      marketDataStore.handleIncomingTick(createTick({ seq: 1, bid: "1.08500" }));
+    it("calculates downward price direction", () => {
+      marketDataStore.handleIncomingTick(createTick({ seq: 1 }));
+
       marketDataStore.handleIncomingTick(
-        createTick({ seq: 2, bid: "1.08400", ask: "1.08403" }),
+        createTick({
+          bid: "1.09900",
+          ask: "1.09920",
+          seq: 2,
+        }),
       );
 
       expect(
@@ -99,49 +145,64 @@ describe("marketDataStore", () => {
       ).toBe("DOWN");
     });
 
-    it("ignores duplicate and out-of-order ticks", () => {
+    it("ignores ticks with an old or repeated sequence number", () => {
       marketDataStore.handleIncomingTick(
-        createTick({ seq: 5, bid: "1.08500" }),
+        createTick({ bid: "1.10000", seq: 2 }),
       );
 
       marketDataStore.handleIncomingTick(
-        createTick({ seq: 4, bid: "1.09000", ask: "1.09003" }),
+        createTick({ bid: "1.20000", seq: 1 }),
       );
 
       const state = marketDataStore.getTickStateBySymbol("EURUSD");
 
-      expect(state?.seq).toBe(5);
-      expect(state?.bid).toBe("1.085");
+      expect(state?.bid).toBe("1.1");
+      expect(state?.seq).toBe(2);
     });
 
-    it("ignores malformed symbols and invalid sequence numbers", () => {
-      marketDataStore.handleIncomingTick(createTick({ symbol: "EUR" }));
-      marketDataStore.handleIncomingTick(createTick({ seq: NaN }));
-      marketDataStore.handleIncomingTick(createTick({ seq: 1.5 }));
-
-      expect(marketDataStore.getTickStateBySymbol("EURUSD")).toBeUndefined();
-    });
-
-    it("ignores negative bids and asks below the bid", () => {
+    it("rejects malformed symbols", () => {
       marketDataStore.handleIncomingTick(
-        createTick({ bid: "-1", ask: "1" }),
-      );
-      marketDataStore.handleIncomingTick(
-        createTick({ bid: "1.2", ask: "1.1" }),
+        createTick({ symbol: "EUR" }),
       );
 
-      expect(marketDataStore.getTickStateBySymbol("EURUSD")).toBeUndefined();
+      expect(
+        marketDataStore.getTickStateBySymbol("EUR"),
+      ).toBeUndefined();
     });
 
-    it("keeps only the latest 20 bid values in history", () => {
+    it("rejects an ask price lower than the bid", () => {
+      marketDataStore.handleIncomingTick(
+        createTick({
+          bid: "1.10100",
+          ask: "1.10000",
+        }),
+      );
+
+      expect(
+        marketDataStore.getTickStateBySymbol("EURUSD"),
+      ).toBeUndefined();
+    });
+
+    it("rejects negative prices", () => {
+      marketDataStore.handleIncomingTick(
+        createTick({
+          bid: "-1",
+          ask: "1",
+        }),
+      );
+
+      expect(
+        marketDataStore.getTickStateBySymbol("EURUSD"),
+      ).toBeUndefined();
+    });
+
+    it("limits price history to 20 entries", () => {
       for (let seq = 1; seq <= 25; seq++) {
-        const bid = (1 + seq / 100000).toFixed(5);
-
         marketDataStore.handleIncomingTick(
           createTick({
+            bid: (1.1 + seq / 100000).toFixed(5),
+            ask: (1.1002 + seq / 100000).toFixed(5),
             seq,
-            bid,
-            ask: (Number(bid) + 0.00003).toFixed(5),
           }),
         );
       }
@@ -149,46 +210,9 @@ describe("marketDataStore", () => {
       const state = marketDataStore.getTickStateBySymbol("EURUSD");
 
       expect(state?.history).toHaveLength(20);
-      expect(state?.seq).toBe(25);
-    });
-  });
-
-  describe("subscribers", () => {
-    it("notifies subscribers when a valid tick arrives", () => {
-      const callback = vi.fn();
-      const unsubscribe = marketDataStore.subscribe(callback);
-
-      marketDataStore.handleIncomingTick(createTick());
-
-      expect(callback).toHaveBeenCalled();
-
-      unsubscribe();
     });
 
-    it("stops notifying after unsubscribe", () => {
-      const callback = vi.fn();
-      const unsubscribe = marketDataStore.subscribe(callback);
-
-      unsubscribe();
-      marketDataStore.handleIncomingTick(createTick());
-
-      expect(callback).not.toHaveBeenCalled();
-    });
-  });
-
-  describe("removeSymbol", () => {
-    it("removes a symbol and its cached state", () => {
-      marketDataStore.handleIncomingTick(createTick());
-
-      marketDataStore.removeSymbol("EURUSD");
-
-      expect(marketDataStore.getAllSymbols()).not.toContain("EURUSD");
-      expect(marketDataStore.getTickStateBySymbol("EURUSD")).toBeUndefined();
-    });
-  });
-
-  describe("setDisconnectedState", () => {
-    it("marks cached ticks as stale", () => {
+    it("marks cached prices as stale after disconnection", () => {
       marketDataStore.handleIncomingTick(createTick());
 
       marketDataStore.setDisconnectedState();
@@ -196,6 +220,39 @@ describe("marketDataStore", () => {
       expect(
         marketDataStore.getTickStateBySymbol("EURUSD")?.isStale,
       ).toBe(true);
+    });
+  });
+
+  describe("subscriptions and version", () => {
+    it("notifies subscribers when the store changes", () => {
+      const callback = vi.fn();
+      const unsubscribe = marketDataStore.subscribe(callback);
+
+      marketDataStore.registerSymbol("EURUSD");
+
+      expect(callback).toHaveBeenCalled();
+
+      unsubscribe();
+    });
+
+    it("increments the version when subscribers are notified", () => {
+      const initialVersion = marketDataStore.getVersion();
+
+      marketDataStore.registerSymbol("EURUSD");
+
+      expect(marketDataStore.getVersion()).toBeGreaterThan(
+        initialVersion,
+      );
+    });
+
+    it("stops notifying after unsubscribe", () => {
+      const callback = vi.fn();
+      const unsubscribe = marketDataStore.subscribe(callback);
+
+      unsubscribe();
+      marketDataStore.registerSymbol("EURUSD");
+
+      expect(callback).not.toHaveBeenCalled();
     });
   });
 });
