@@ -70,7 +70,7 @@ export function App() {
         </section>
 
         <aside className="sticky top-6">
-          {selectedTicket?.price !== undefined ? (
+          {selectedTicket != null ? (
             <OrderTicket
               key={`${selectedTicket.symbol}-${selectedTicket.seq}`}
               initialSymbol={selectedTicket.symbol}
