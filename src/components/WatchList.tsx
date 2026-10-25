@@ -6,38 +6,38 @@ import React, {
 } from "react";
 import { marketDataStore } from "../store/MarketDataStore";
 import { WatchlistRow } from "./WatchlistRow";
-
-interface WatchlistProps {
-  onSelectInstrument: (
-    symbol: string,
-    currentPrice: string,
-    currentSeq: number,
-  ) => void;
-
-  onSubscribeSymbol: (symbol: string) => void;
-}
+import { IWatchlistProps } from "../types/types";
+import { INITIAL_INSTRUMENTS } from "../helper/helperMethods";
 
 const STORAGE_KEY = "fx_watchlist_layout_config";
-// Pre-seeded core instruments from your 200 catalog index
-const INITIAL_INSTRUMENTS = [
-  "EURUSD",
-  "GBPUSD",
-  "USDJPY",
-  "AUDUSD",
-  "USDCAD",
-  "EURGBP",
-  "EURJPY",
-  "CHFJPY",
-];
 
-export const Watchlist: React.FC<WatchlistProps> = ({
+export const Watchlist: React.FC<IWatchlistProps> = ({
   onSelectInstrument,
   onSubscribeSymbol,
 }) => {
-  // Local active symbols state bound to cache records
   const [symbols, setSymbols] = useState<string[]>(() => {
-    const cached = localStorage.getItem(STORAGE_KEY);
-    return cached ? JSON.parse(cached) : INITIAL_INSTRUMENTS;
+    let cachedSymbols: string[] = [];
+
+    try {
+      //on page refresh symbols are not lost, they are retrieved from local storage
+      const localStorageSaved = localStorage.getItem(STORAGE_KEY);
+      const parsed: unknown = localStorageSaved
+        ? JSON.parse(localStorageSaved)
+        : [];
+
+      if (Array.isArray(parsed)) {
+        cachedSymbols = parsed.filter(
+          (item): item is string => typeof item === "string",
+        );
+      }
+    } catch (error) {
+      console.error("Failed to load symbols from local storage:", error);
+    }
+
+    return [...new Set([...cachedSymbols, ...INITIAL_INSTRUMENTS])].slice(
+      0,
+      200,
+    );
   });
 
   const [selected, setSelected] = useState<string | null>(null);
@@ -86,7 +86,7 @@ export const Watchlist: React.FC<WatchlistProps> = ({
   const handleAddSymbol = (input: string) => {
     const symbol = input.trim().toUpperCase();
 
-    // Validate format: six uppercase letters
+    // six uppercase letters validation
     if (!/^[A-Z]{6}$/.test(symbol)) {
       alert("Enter a valid symbol, e.g. EURJPY");
       return;
@@ -102,17 +102,18 @@ export const Watchlist: React.FC<WatchlistProps> = ({
       return;
     }
 
-    // Register symbol with the market store
+    // Add symbol with the market store
     marketDataStore.registerSymbol(symbol);
 
-    // Add to the UI; your existing useEffect saves localStorage
+    // Existing useEffect saves localStorage
     setSymbols((prev) => [...prev, symbol]);
 
     onSubscribeSymbol(symbol);
   };
 
+  //handle drag event
   const handleDragOver = (e: React.DragEvent, targetIdx: number) => {
-    e.preventDefault(); // Required to drop elements
+    e.preventDefault();
     if (draggedIndex === null || draggedIndex === targetIdx) return;
 
     const updatedList = [...symbols];
