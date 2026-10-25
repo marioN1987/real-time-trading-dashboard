@@ -14,6 +14,16 @@ export interface ISparklineProps {
   history: string[];
 }
 
+export interface IWatchlistProps {
+  onSelectInstrument: (
+    symbol: string,
+    currentPrice: string,
+    currentSeq: number,
+  ) => void;
+  availableInstruments: string[];
+  onSubscribeSymbol: (symbol: string) => void;
+}
+
 export interface RowProps {
   symbol: string;
   index: number;
