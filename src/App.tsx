@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ITick, ConnectionStatus, IPriceTick } from "./types/types";
+import { ITick, ConnectionStatus } from "./types/types";
 import { marketDataStore } from "./store/MarketDataStore";
 import { OrderTicket } from "./components/OrderTick";
 import { Watchlist } from "./components/WatchList";
+import { useMarketDataStream } from "./hooks/useMarketDataStream";
+import { subscribeSymbol } from "./helper/helperMethods";
 
 export function App() {
   const [selectedTicket, setSelectedTicket] = useState<ITick | null>(null);
@@ -19,111 +21,19 @@ export function App() {
   const reconnectTimerRef = useRef<number | null>(null);
   const subscriptionsRef = useRef<Set<string>>(new Set());
 
-  const connectStream = useCallback((): void => {
-    const ws = new WebSocket("ws://localhost:8080");
+  const { connectStream } = useMarketDataStream({
+    wsRef,
+    connectionStatusRef,
+    reconnectAttempt,
+    reconnectTimerRef,
+    subscriptionsRef,
+    setAvailableInstruments,
+    setServerSessionId,
+    marketDataStore,
+  });
 
-    wsRef.current = ws;
-    connectionStatusRef.current = ConnectionStatus.CONNECTING;
-
-    ws.onopen = () => {
-      connectionStatusRef.current = ConnectionStatus.CONNECTED;
-      reconnectAttempt.current = 0;
-
-      if (reconnectTimerRef.current !== null) {
-        window.clearTimeout(reconnectTimerRef.current);
-        reconnectTimerRef.current = null;
-      }
-
-      console.log("WebSocket Connected");
-
-      // Subscribe to every symbol added to the watchlist.
-      for (const symbol of subscriptionsRef.current) {
-        if (ws.readyState === WebSocket.OPEN) {
-          ws.send(
-            JSON.stringify({
-              type: "subscribe",
-              symbol,
-            }),
-          );
-
-          console.log("WebSocket Subscribe sent on connect:", symbol);
-        }
-      }
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        const message = JSON.parse(event.data);
-
-        if (message.type === "catalog") {
-          setAvailableInstruments(message.symbols);
-          setServerSessionId(message.sessionId);
-          return;
-        }
-
-        const tick = JSON.parse(event.data) as IPriceTick;
-
-        marketDataStore.handleIncomingTick(tick);
-      } catch (err) {
-        console.error("WebSocket Failed to process market tick:", err);
-      }
-    };
-
-    ws.onclose = () => {
-      // Ignore events from an older connection.
-      if (wsRef.current !== ws) return;
-
-      wsRef.current = null;
-      connectionStatusRef.current = ConnectionStatus.DISCONNECTED;
-      marketDataStore.setDisconnectedState();
-
-      const baseDelay = Math.min(
-        1000 * Math.pow(2, reconnectAttempt.current),
-        30000,
-      );
-
-      const backoffDelay = Math.round(baseDelay * (0.8 + Math.random() * 0.4));
-
-      reconnectAttempt.current += 1;
-
-      console.log(`WebSocket reconnecting in ${backoffDelay}ms`);
-
-      reconnectTimerRef.current = window.setTimeout(() => {
-        connectStream();
-      }, backoffDelay);
-
-      ws.onerror = (event) => {
-        console.error("WebSocket Connection error:", event);
-        // Handles reconnection.
-      };
-    };
-  }, []);
-
-  const subscribeSymbol = useCallback((symbol: string) => {
-    const symbolUppercase = symbol.trim().toUpperCase();
-
-    if (!/^[A-Z]{6}$/.test(symbolUppercase)) {
-      console.warn("Invalid symbol, should be 6 uppercase letters:", symbol);
-      return;
-    }
-
-    // Remember it even if the connection isn't ready yet.
-    subscriptionsRef.current.add(symbolUppercase);
-
-    const ws = wsRef.current;
-
-    if (ws?.readyState === WebSocket.OPEN) {
-      ws.send(
-        JSON.stringify({
-          type: "subscribe",
-          symbol: symbolUppercase,
-        }),
-      );
-
-      console.log("WebSocket Subscribe sent:", symbolUppercase);
-    } else {
-      console.log("WebSocket Subscription queued:", symbolUppercase);
-    }
+  const handleSubscribeSymbol = useCallback((symbol: string) => {
+    subscribeSymbol(symbol, subscriptionsRef, wsRef);
   }, []);
 
   // Handle selected ticket event
@@ -153,7 +63,7 @@ export function App() {
         <section className="lg:col-span-2">
           <Watchlist
             onSelectInstrument={handleRowSelect}
-            onSubscribeSymbol={subscribeSymbol}
+            onSubscribeSymbol={handleSubscribeSymbol}
             availableInstruments={availableInstruments}
             serverSessionId={serverSessionId}
           />
