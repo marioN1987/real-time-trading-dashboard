@@ -51,13 +51,17 @@ class MarketDataStore {
 }
 
   public reorderSymbols(symbols: string[]): void {
-    const unique = [...new Set(symbols)].filter((symbol) =>
-      this.symbols.includes(symbol),
-    );
+    const unique = [
+      ...new Set(
+        symbols.map(symbol => symbol.trim().toUpperCase())
+      ),
+    ].filter(symbol => this.visibleSymbols.includes(symbol));
 
-    this.symbols = [
+    this.visibleSymbols = [
       ...unique,
-      ...this.symbols.filter((symbol) => !unique.includes(symbol)),
+      ...this.visibleSymbols.filter(
+        symbol => !unique.includes(symbol)
+      ),
     ];
 
     this.notifySubscribers();
