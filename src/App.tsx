@@ -80,7 +80,7 @@ export function App() {
             />
           ) : (
             <div className="py-20 px-4 text-center text-slate-500 border border-dashed border-slate-800 rounded-xl bg-slate-950/40 font-mono text-xs">
-              Select market instrument Row.
+              Select a market instrument row.
             </div>
           )}
         </aside>
