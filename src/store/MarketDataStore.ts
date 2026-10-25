@@ -1,6 +1,7 @@
 
 import { Decimal } from "decimal.js";
 import { ITickState, IPriceTick, Subscriber } from "../types/types";
+import { isValidSymbol, normalizeSymbol } from "../helper/helperMethods";
 
 class MarketDataStore {
   private cache = new Map<string, ITickState>();
@@ -25,35 +26,35 @@ class MarketDataStore {
   }
 
   public registerSymbol(symbol: string): void {
-    const normalized = symbol.trim().toUpperCase();
+    const normalizedSymbol = normalizeSymbol(symbol);
 
-    if (!/^[A-Z]{6}$/.test(normalized)) return;
+    if (!isValidSymbol(normalizedSymbol)) return;
 
-    if (!this.symbols.includes(normalized)) {
-      this.symbols = [...this.symbols, normalized];
+    if (!this.symbols.includes(normalizedSymbol)) {
+      this.symbols = [...this.symbols, normalizedSymbol];
     }
 
-    if (!this.visibleSymbols.includes(normalized)) {
-      this.visibleSymbols = [...this.visibleSymbols, normalized];
+    if (!this.visibleSymbols.includes(normalizedSymbol)) {
+      this.visibleSymbols = [...this.visibleSymbols, normalizedSymbol];
     }
 
     this.notifySubscribers();
   }
 
   public removeSymbol(symbol: string): void {
-  const normalized = symbol.trim().toUpperCase();
+    const normalizedSymbol = normalizeSymbol(symbol);
 
-  this.visibleSymbols = this.visibleSymbols.filter(
-    (item) => item !== normalized,
-  );
+    this.visibleSymbols = this.visibleSymbols.filter(
+      (item) => item !== normalizedSymbol,
+    );
 
-  this.notifySubscribers();
-}
+    this.notifySubscribers();
+  }
 
   public reorderSymbols(symbols: string[]): void {
     const unique = [
       ...new Set(
-        symbols.map(symbol => symbol.trim().toUpperCase())
+        symbols.map(symbol => normalizeSymbol(symbol))
       ),
     ].filter(symbol => this.visibleSymbols.includes(symbol));
 
@@ -88,7 +89,7 @@ class MarketDataStore {
     if (
       !tick ||
       typeof tick.symbol !== "string" ||
-      !/^[A-Z]{6}$/.test(tick.symbol) ||
+      !isValidSymbol(tick.symbol) ||
       !Number.isSafeInteger(tick.seq)
     ) {
       console.warn("Rejected invalid tick:", tick);

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { marketDataStore } from "../store/MarketDataStore";
 import { WatchlistRow } from "./WatchlistRow";
 import { IWatchlistProps } from "../types/types";
+import { isValidSymbol, normalizeSymbol } from "../helper/helperMethods";
 
 const STORAGE_KEY = "fx_watchlist";
 const SESSION_STORAGE_KEY = "fx_watchlist_server_session";
@@ -49,7 +50,7 @@ export const Watchlist: React.FC<IWatchlistProps> = ({
           Array.isArray(parsed) &&
           parsed.every(
             (item): item is string =>
-              typeof item === "string" && /^[A-Z]{6}$/.test(item),
+              typeof item === "string" && isValidSymbol(item),
           )
         ) {
           setSymbols(parsed);
@@ -81,7 +82,7 @@ export const Watchlist: React.FC<IWatchlistProps> = ({
     setDraggedIndex(idx);
   };
 
-  function removeSymbol(symbol: string) {
+  function handleRemoveSymbol(symbol: string) {
     setSymbols((current) => current.filter((item) => item !== symbol));
 
     if (selected === symbol) {
@@ -91,16 +92,16 @@ export const Watchlist: React.FC<IWatchlistProps> = ({
   }
 
   const handleAddSymbol = (input: string) => {
-    const symbol = input.trim().toUpperCase();
+    const normalizedSymbol = normalizeSymbol(input);
 
     // six uppercase letters validation
-    if (!/^[A-Z]{6}$/.test(symbol)) {
+    if (!isValidSymbol(normalizedSymbol)) {
       alert("Enter a valid symbol, e.g. EURJPY");
       return;
     }
 
-    if (symbols.includes(symbol)) {
-      alert(`${symbol} is already in your watchlist`);
+    if (symbols.includes(normalizedSymbol)) {
+      alert(`${normalizedSymbol} is already in your watchlist`);
       return;
     }
 
@@ -110,12 +111,12 @@ export const Watchlist: React.FC<IWatchlistProps> = ({
     }
 
     // Add symbol with the market store
-    marketDataStore.registerSymbol(symbol);
+    marketDataStore.registerSymbol(normalizedSymbol);
 
     // Existing useEffect saves localStorage
-    setSymbols((prev) => [...prev, symbol]);
+    setSymbols((prev) => [...prev, normalizedSymbol]);
 
-    onSubscribeSymbol(symbol);
+    onSubscribeSymbol(normalizedSymbol);
   };
 
   //handle drag event
@@ -199,7 +200,7 @@ export const Watchlist: React.FC<IWatchlistProps> = ({
               <WatchlistRow
                 key={symbol}
                 symbol={symbol}
-                onRemove={removeSymbol}
+                onRemove={handleRemoveSymbol}
                 index={idx}
                 onSelect={onSelectInstrument}
                 onDragStart={() => handleDragStart(idx)}
