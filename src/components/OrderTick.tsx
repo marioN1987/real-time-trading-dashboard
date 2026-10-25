@@ -66,7 +66,7 @@ export const OrderTicket: React.FC<ITicketProps> = ({
           `Movement Delta: ${priceDelta.toFixed(5)} (Max Allowed: ${maxTolerance})\n\n` +
           `Do you want to force order routing with the current live price?`,
       );
-      if (!proceed) return; // Order aborted safely by user
+      if (!proceed) return;
     }
 
     alert(
