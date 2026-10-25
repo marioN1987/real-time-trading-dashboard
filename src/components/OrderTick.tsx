@@ -31,10 +31,7 @@ export const OrderTicket: React.FC<ITicketProps> = ({
     }
   }, [quantity, limitPrice]);
 
-  // Subscribe to symbol data modifications
   useSyncExternalStore(marketDataStore.subscribe, marketDataStore.getVersion);
-
-  //useSyncExternalStore(marketDataStore.subscribe, marketDataStore.getVersion);
 
   const handleOrderSubmission = (e: React.FormEvent) => {
     e.preventDefault();
