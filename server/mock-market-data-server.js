@@ -6,6 +6,7 @@ const PORT = 8080;
 const wss = new WebSocketServer({ port: PORT });
 const sequenceTracker = new Map();
 const priceTracker = new Map();
+const TICK_INTERVAL = 2; //2 ms up to 500 ticks per second
 
 const CURRENCIES = [
   "USD", "EUR", "GBP", "JPY", "CHF",
@@ -24,7 +25,7 @@ for (const base of CURRENCIES) {
   }
 }
 
-// get 200 Instruments
+// Get 200 Instruments
 const UNIQUE_INSTRUMENTS = [...new Set(INSTRUMENTS)].slice(0, 200);
 
 console.log(`Generated ${UNIQUE_INSTRUMENTS.length} instruments.`);
@@ -93,7 +94,7 @@ wss.on("connection", (ws) => {
     sessionId: SESSION_ID
   }));
 
-  const timer = setInterval(() => {
+  const tickInterval = setInterval(() => {
     if (ws.readyState !== WebSocket.OPEN) return;
 
     for (const symbol of subscriptions) {
@@ -101,7 +102,7 @@ wss.on("connection", (ws) => {
 
       ws.send(JSON.stringify(createTick(symbol)));
     }
-  }, 10);
+  }, TICK_INTERVAL);
 
   ws.on("message", (raw) => {
     try {
@@ -164,19 +165,19 @@ wss.on("connection", (ws) => {
   }, 25000 + Math.random() * 10000);
 
   ws.on("close", () => {
-    clearInterval(timer);
+    clearInterval(tickInterval);
     clearTimeout(disconnectTimer);
     console.log("Market data server disconnected.");
   });
 
   ws.on("close", (code, reason) => {
-  clearInterval(timer);
+    clearInterval(tickInterval);
 
-  console.log("WebSocket closed:", {
-    code,
-    reason: reason.toString(),
+    console.log("WebSocket closed:", {
+      code,
+      reason: reason.toString(),
+    });
   });
-});
 
   ws.on("error", (error) => {
     console.error("Market data server error:", error.message);
