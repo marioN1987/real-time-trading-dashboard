@@ -7,33 +7,48 @@ class MarketDataStore {
   private subscribers = new Set<Subscriber>();
   private symbols: string[] = [];
   private baselines = new Map<string, string>();
-  private removedSymbols = new Set<string>();
+  private visibleSymbols: string[] = [];
+
+  // version counter that tells React when the store has changed
+  private version = 0;
 
   private readonly maxHistoryLength = 20;
+  
+  public getVersion = (): number => this.version;
+  
+  public reset(): void {
+    this.cache.clear();
+    this.subscribers.clear();
+    this.symbols = [];
+    this.baselines.clear();
+    this.visibleSymbols = [];
+  }
 
   public registerSymbol(symbol: string): void {
-    const symbolUppercase = symbol.trim().toUpperCase();
+    const normalized = symbol.trim().toUpperCase();
 
-    if (!/^[A-Z]{6}$/.test(symbolUppercase)) return;
-    if (this.symbols.includes(symbolUppercase)) return;
+    if (!/^[A-Z]{6}$/.test(normalized)) return;
 
-    this.symbols = [...this.symbols, symbolUppercase];
+    if (!this.symbols.includes(normalized)) {
+      this.symbols = [...this.symbols, normalized];
+    }
+
+    if (!this.visibleSymbols.includes(normalized)) {
+      this.visibleSymbols = [...this.visibleSymbols, normalized];
+    }
+
     this.notifySubscribers();
   }
 
   public removeSymbol(symbol: string): void {
-    const symbolUppercase = symbol.trim().toUpperCase();
+  const normalized = symbol.trim().toUpperCase();
 
-    this.removedSymbols.add(symbolUppercase);
-    this.symbols = this.symbols.filter(
-      (item) => item !== symbolUppercase,
-    );
+  this.visibleSymbols = this.visibleSymbols.filter(
+    (item) => item !== normalized,
+  );
 
-    this.cache.delete(symbolUppercase);
-    this.baselines.delete(symbolUppercase);
-
-    this.notifySubscribers();
-  }
+  this.notifySubscribers();
+}
 
   public reorderSymbols(symbols: string[]): void {
     const unique = [...new Set(symbols)].filter((symbol) =>
@@ -48,9 +63,13 @@ class MarketDataStore {
     this.notifySubscribers();
   }
 
-  public getAllSymbols = (): string[] => this.symbols;
+  public getAllSymbols = ():string[] => this.visibleSymbols;
 
-  public getTickStateBySymbol = (symbol: string): ITickState | undefined => this.cache.get(symbol);
+  public getAllRegisteredSymbols = ():string[] => this.symbols;
+
+  public getTickStateBySymbol = (
+    symbol: string,
+  ): ITickState | undefined => this.cache.get(symbol);
 
   public subscribe = (callback: Subscriber): (() => void) => {
     this.subscribers.add(callback);
@@ -60,18 +79,18 @@ class MarketDataStore {
     };
   };
 
+  
   public handleIncomingTick(tick: IPriceTick): void {
-    //check incoming feed
     if (
       !tick ||
       typeof tick.symbol !== "string" ||
       !/^[A-Z]{6}$/.test(tick.symbol) ||
       !Number.isSafeInteger(tick.seq)
     ) {
+      console.warn("Rejected invalid tick:", tick);
       return;
     }
 
-    //convert bid and ask price to decimal
     try {
       const bid = new Decimal(tick.bid);
       const ask = new Decimal(tick.ask);
@@ -82,15 +101,14 @@ class MarketDataStore {
         bid.isNegative() ||
         ask.lt(bid)
       ) {
+        console.warn("Rejected invalid prices:", tick);
         return;
       }
 
-      const tickStateExists = this.cache.get(tick.symbol);
+      const previous = this.cache.get(tick.symbol);
 
-      // Ignore duplicate and out-of-order updates.
-      if (tickStateExists && tick.seq <= tickStateExists   .seq) return;
-
-      this.registerSymbol(tick.symbol);
+      // Ignore out-of-order ticks.
+      if (previous && tick.seq <= previous.seq) return;
 
       if (!this.baselines.has(tick.symbol)) {
         this.baselines.set(tick.symbol, bid.toString());
@@ -98,19 +116,17 @@ class MarketDataStore {
 
       let direction: ITickState["direction"] = "FLAT";
 
-      if (tickStateExists) {
-        if (bid.gt(tickStateExists .bid)) direction = "UP";
-        else if (bid.lt(tickStateExists.bid)) direction = "DOWN";
+      if (previous) {
+        if (bid.gt(previous.bid)) direction = "UP";
+        else if (bid.lt(previous.bid)) direction = "DOWN";
       }
 
       const history = [
-        ...(tickStateExists?.history ?? []),
+        ...(previous?.history ?? []),
         bid.toString(),
       ].slice(-this.maxHistoryLength);
 
-      const baseline = new Decimal(
-        this.baselines.get(tick.symbol)!,
-      );
+      const baseline = new Decimal(this.baselines.get(tick.symbol)!);
 
       this.cache.set(tick.symbol, {
         ...tick,
@@ -123,9 +139,10 @@ class MarketDataStore {
         history,
       });
 
+      this.registerSymbol(tick.symbol);
       this.notifySubscribers();
-    } catch {
-      // Ignore invalid decimal values.
+    } catch (err) {
+      console.error("Failed to process tick:", tick, err);
     }
   }
 
@@ -141,6 +158,8 @@ class MarketDataStore {
   }
 
   private notifySubscribers(): void {
+    this.version++;
+
     this.subscribers.forEach((callback) => callback());
   }
 }

@@ -10,6 +10,7 @@ export function App() {
     ConnectionStatus.DISCONNECTED,
   );
 
+  const [serverSessionId, setServerSessionId] = useState("");
   const [availableInstruments, setAvailableInstruments] = useState<string[]>(
     [],
   );
@@ -56,6 +57,7 @@ export function App() {
 
         if (message.type === "catalog") {
           setAvailableInstruments(message.symbols);
+          setServerSessionId(message.sessionId);
           return;
         }
 
@@ -153,6 +155,7 @@ export function App() {
             onSelectInstrument={handleRowSelect}
             onSubscribeSymbol={subscribeSymbol}
             availableInstruments={availableInstruments}
+            serverSessionId={serverSessionId}
           />
         </section>
 

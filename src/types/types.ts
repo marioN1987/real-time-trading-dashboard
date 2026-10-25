@@ -20,6 +20,7 @@ export interface IWatchlistProps {
     currentPrice: string,
     currentSeq: number,
   ) => void;
+  serverSessionId: string;
   availableInstruments: string[];
   onSubscribeSymbol: (symbol: string) => void;
 }

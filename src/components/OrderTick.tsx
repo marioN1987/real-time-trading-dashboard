@@ -21,21 +21,20 @@ export const OrderTicket: React.FC<ITicketProps> = ({
         setEstimatedCost("0.00");
         return;
       }
+
       const q = new Decimal(quantity);
       const p = new Decimal(limitPrice);
+
       setEstimatedCost(q.times(p).toFixed(2));
     } catch {
       setEstimatedCost("0.00");
     }
-    return () => {};
   }, [quantity, limitPrice]);
 
   // Subscribe to symbol data modifications
-  useSyncExternalStore(
-    (cb) => marketDataStore.subscribe(cb),
-    () => marketDataStore.getAllSymbols(),
-    () => [],
-  );
+  useSyncExternalStore(marketDataStore.subscribe, marketDataStore.getVersion);
+
+  //useSyncExternalStore(marketDataStore.subscribe, marketDataStore.getVersion);
 
   const handleOrderSubmission = (e: React.FormEvent) => {
     e.preventDefault();

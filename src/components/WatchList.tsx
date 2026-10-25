@@ -3,11 +3,16 @@ import { marketDataStore } from "../store/MarketDataStore";
 import { WatchlistRow } from "./WatchlistRow";
 import { IWatchlistProps } from "../types/types";
 
+const STORAGE_KEY = "fx_watchlist";
+const SESSION_STORAGE_KEY = "fx_watchlist_server_session";
+
 export const Watchlist: React.FC<IWatchlistProps> = ({
   onSelectInstrument,
   onSubscribeSymbol,
+  serverSessionId,
   availableInstruments,
 }) => {
+  const [isInitialized, setIsInitialized] = useState(false);
   const [symbols, setSymbols] = useState<string[]>([]);
   const initializedRef = useRef(false);
   const [selected, setSelected] = useState<string | null>(null);
@@ -16,35 +21,59 @@ export const Watchlist: React.FC<IWatchlistProps> = ({
   const tbodyRef = useRef<HTMLTableSectionElement>(null);
 
   useEffect(() => {
-    if (availableInstruments.length === 0) return;
-
-    setSymbols((current) => {
-      // Initialize once from the server catalog.
-      if (!initializedRef.current) {
-        initializedRef.current = true;
-        return availableInstruments;
-      }
-
-      // Keep user-added symbols even if the catalog is received again.
-      const catalog = new Set(availableInstruments);
-      const existingCatalogSymbols = current.filter((s) => catalog.has(s));
-      const customSymbols = current.filter((s) => !catalog.has(s));
-
-      return [...existingCatalogSymbols, ...customSymbols];
-    });
-  }, [availableInstruments]);
-
-  useEffect(() => {
-    marketDataStore.reorderSymbols(symbols);
-  }, [symbols]);
-
-  useEffect(() => {
-    for (const symbol of symbols) {
-      marketDataStore.registerSymbol(symbol);
+    if (availableInstruments.length === 0 || !serverSessionId) {
+      return;
     }
 
-    marketDataStore.reorderSymbols(symbols);
-  }, [symbols]);
+    const previousSession = localStorage.getItem(SESSION_STORAGE_KEY);
+
+    if (previousSession !== serverSessionId) {
+      // Server restarted: reset to all server instruments.
+      localStorage.setItem(SESSION_STORAGE_KEY, serverSessionId);
+      //localStorage.setItem(STORAGE_KEY, JSON.stringify(availableInstruments));
+
+      setSymbols(availableInstruments);
+      initializedRef.current = true;
+      setIsInitialized(true);
+      return;
+    }
+
+    // Restore from localStorage
+    const saved = localStorage.getItem(STORAGE_KEY);
+
+    if (saved !== null) {
+      try {
+        const parsed: unknown = JSON.parse(saved);
+
+        if (
+          Array.isArray(parsed) &&
+          parsed.every(
+            (item): item is string =>
+              typeof item === "string" && /^[A-Z]{6}$/.test(item),
+          )
+        ) {
+          setSymbols(parsed);
+          initializedRef.current = true;
+          setIsInitialized(true);
+          return;
+        }
+      } catch {
+        //code continues
+      }
+    }
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(availableInstruments));
+
+    setSymbols(availableInstruments);
+    initializedRef.current = true;
+    setIsInitialized(true);
+  }, [availableInstruments, serverSessionId]);
+
+  useEffect(() => {
+    if (!isInitialized) return;
+
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(symbols));
+  }, [symbols, isInitialized]);
 
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
 
@@ -120,7 +149,6 @@ export const Watchlist: React.FC<IWatchlistProps> = ({
           </p>
         )}
 
-        {/* Requirement 2: Manual Symbol Creation Form */}
         <form
           onSubmit={(e) => {
             e.preventDefault();

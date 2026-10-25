@@ -1,6 +1,7 @@
 
 const { WebSocketServer, WebSocket } = require("ws");
 
+const SESSION_ID = `${Date.now()}-${Math.random()}`;
 const PORT = 8080;
 const wss = new WebSocketServer({ port: PORT });
 const sequenceTracker = new Map();
@@ -24,7 +25,7 @@ for (const base of CURRENCIES) {
 }
 
 // get 200 Instruments
-const UNIQUE_INSTRUMENTS = [...new Set(INSTRUMENTS)].slice(0, 200);
+const UNIQUE_INSTRUMENTS = [...new Set(INSTRUMENTS)].slice(0, 20);
 
 console.log(`Generated ${UNIQUE_INSTRUMENTS.length} instruments.`);
 
@@ -89,6 +90,7 @@ wss.on("connection", (ws) => {
   ws.send(JSON.stringify({
     type: "catalog",
     symbols: UNIQUE_INSTRUMENTS,
+    sessionId: SESSION_ID
   }));
 
   const timer = setInterval(() => {

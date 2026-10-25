@@ -12,11 +12,9 @@ export const WatchlistRow: React.FC<RowProps> = ({
   onDragOver,
   onDragEnd,
 }) => {
-  const state = useSyncExternalStore(
-    (cb) => marketDataStore.subscribe(cb),
-    () => marketDataStore.getTickStateBySymbol(symbol),
-    () => undefined,
-  );
+  useSyncExternalStore(marketDataStore.subscribe, marketDataStore.getVersion);
+
+  const state = marketDataStore.getTickStateBySymbol(symbol);
 
   const removePair = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
