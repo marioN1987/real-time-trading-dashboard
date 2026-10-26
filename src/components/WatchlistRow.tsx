@@ -1,7 +1,7 @@
 import React, { useSyncExternalStore } from "react";
 import { marketDataStore } from "../store/MarketDataStore";
 import { Sparkline } from "./Sparkline";
-import { RowProps } from "../types/types";
+import { ITickState, RowProps } from "../types/types";
 
 export const WatchlistRow: React.FC<RowProps> = ({
   symbol,
@@ -19,6 +19,13 @@ export const WatchlistRow: React.FC<RowProps> = ({
   const removePair = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     onRemove(symbol);
+  };
+
+  const handleOnKeyDown = (ev: React.KeyboardEvent, state: ITickState) => {
+    if (ev.key === "Enter" || ev.key === " ") {
+      ev.preventDefault();
+      onSelect(state.symbol, String(state.bid), state.seq);
+    }
   };
 
   if (!state) {
@@ -52,12 +59,7 @@ export const WatchlistRow: React.FC<RowProps> = ({
       onDragOver={(e) => onDragOver(e, index)}
       onDragEnd={onDragEnd}
       onClick={() => onSelect(state.symbol, String(state.bid), state.seq)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter" || e.key === " ") {
-          e.preventDefault();
-          onSelect(state.symbol, String(state.bid), state.seq);
-        }
-      }}
+      onKeyDown={(ev) => handleOnKeyDown(ev, state)}
       style={{ contentVisibility: "auto" }}
       className={`group border-b border-slate-800 hover:bg-slate-800 hover:border-l-cyan-400 cursor-pointer font-mono transition-all duration-75 text-sm ${state.isStale ? "opacity-30 pointer-events-none" : ""}`}
     >
