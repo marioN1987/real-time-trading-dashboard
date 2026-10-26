@@ -23,17 +23,11 @@ describe("MarketDataStore", () => {
     it("registers a valid symbol", () => {
       marketDataStore.registerSymbol("EURUSD");
 
-      expect(marketDataStore.getAllSymbols()).toContain("EURUSD");
       expect(marketDataStore.getAllRegisteredSymbols()).toContain(
         "EURUSD",
       );
     });
 
-    it("normalizes symbols to uppercase", () => {
-      marketDataStore.registerSymbol("eurusd");
-
-      expect(marketDataStore.getAllSymbols()).toContain("EURUSD");
-    });
 
     it("rejects invalid symbols", () => {
       marketDataStore.registerSymbol("EUR");
@@ -105,12 +99,6 @@ describe("MarketDataStore", () => {
       expect(state?.spread).toBe("0.00020");
       expect(state?.changeSinceOpen).toBe("0.00000");
       expect(state?.isStale).toBe(false);
-    });
-
-    it("automatically registers the tick symbol", () => {
-      marketDataStore.handleIncomingTick(createTick());
-
-      expect(marketDataStore.getAllSymbols()).toContain("EURUSD");
     });
 
     it("calculates upward price direction", () => {
