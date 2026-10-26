@@ -15,6 +15,7 @@ Real-time trading dashboard uses a client–server architecture with a centraliz
 
 - Node.js Mock Market Data Server: Generates market prices
 - WebSocket communication with MarketDataStore and Node.js market server
+- UseSyncExternalStore hook connects components to MarketDataStore efficiently and provides more targeted updates, without copying the entire store into React state. Benefits: reliable updates, less boilerplate, more efficient rendering which is important for real time apps.
 - Watchlist: Get data from MarketDataStore and render it to show to user actual market prices.
 
 ### Tradeoffs
