@@ -1,4 +1,3 @@
-
 import { Decimal } from "decimal.js";
 import { ITickState, IPriceTick, Subscriber } from "../types/types";
 import { isValidSymbol, normalizeSymbol } from "../helper/helperMethods";
@@ -6,75 +5,104 @@ import { isValidSymbol, normalizeSymbol } from "../helper/helperMethods";
 class MarketDataStore {
   private cache = new Map<string, ITickState>();
   private subscribers = new Set<Subscriber>();
+
+  // All known instruments, including those removed from the watchlist.
   private symbols: string[] = [];
-  private baselines = new Map<string, string>();
+
+  // Symbols currently visible in the store's watchlist.
   private visibleSymbols: string[] = [];
 
-  // version counter that tells React when the store has changed
+  // Opening prices used to calculate changeSinceOpen.
+  private baselines = new Map<string, string>();
+
   private version = 0;
+  private notificationScheduled = false;
 
   private readonly maxHistoryLength = 20;
-  
+
   public getVersion = (): number => this.version;
-  
+
   public reset(): void {
     this.cache.clear();
     this.subscribers.clear();
     this.symbols = [];
     this.baselines.clear();
     this.visibleSymbols = [];
+    this.version++;
+    this.notificationScheduled = false;
   }
 
+  /**
+   * Registers a symbol and makes it visible in the watchlist.
+   * Only notifies subscribers if the watchlist changes.
+   */
   public registerSymbol(symbol: string): void {
-    const normalizedSymbol = normalizeSymbol(symbol);
+    const normalized = normalizeSymbol(symbol);
 
-    if (!isValidSymbol(normalizedSymbol)) return;
+    if (!isValidSymbol(normalized)) return;
 
-    if (!this.symbols.includes(normalizedSymbol)) {
-      this.symbols = [...this.symbols, normalizedSymbol];
+    let changed = false;
+
+    if (!this.symbols.includes(normalized)) {
+      this.symbols.push(normalized);
     }
 
-    if (!this.visibleSymbols.includes(normalizedSymbol)) {
-      this.visibleSymbols = [...this.visibleSymbols, normalizedSymbol];
+    if (!this.visibleSymbols.includes(normalized)) {
+      this.visibleSymbols.push(normalized);
+      changed = true;
     }
 
-    this.notifySubscribers();
+    if (changed) {
+      this.notifySubscribers();
+    }
   }
 
+  /**
+   * Hides a symbol without deleting its cached market data.
+   */
   public removeSymbol(symbol: string): void {
-    const normalizedSymbol = normalizeSymbol(symbol);
+    const normalized = normalizeSymbol(symbol);
 
-    this.visibleSymbols = this.visibleSymbols.filter(
-      (item) => item !== normalizedSymbol,
+    const updated = this.visibleSymbols.filter(
+      (item) => item !== normalized,
     );
 
+    if (updated.length === this.visibleSymbols.length) return;
+
+    this.visibleSymbols = updated;
     this.notifySubscribers();
   }
 
   public reorderSymbols(symbols: string[]): void {
     const unique = [
-      ...new Set(
-        symbols.map(symbol => normalizeSymbol(symbol))
-      ),
-    ].filter(symbol => this.visibleSymbols.includes(symbol));
+      ...new Set(symbols.map(normalizeSymbol)),
+    ].filter((symbol) => this.visibleSymbols.includes(symbol));
 
-    this.visibleSymbols = [
+    const reordered = [
       ...unique,
       ...this.visibleSymbols.filter(
-        symbol => !unique.includes(symbol)
+        (symbol) => !unique.includes(symbol),
       ),
     ];
 
+    if (
+      reordered.length === this.visibleSymbols.length &&
+      reordered.every((symbol, index) => symbol === this.visibleSymbols[index])
+    ) {
+      return;
+    }
+
+    this.visibleSymbols = reordered;
     this.notifySubscribers();
   }
 
-  public getAllSymbols = ():string[] => this.visibleSymbols;
+  public getAllSymbols = (): string[] => this.visibleSymbols;
 
-  public getAllRegisteredSymbols = ():string[] => this.symbols;
+  public getAllRegisteredSymbols = (): string[] => this.symbols;
 
   public getTickStateBySymbol = (
     symbol: string,
-  ): ITickState | undefined => this.cache.get(symbol);
+  ): ITickState | undefined => this.cache.get(normalizeSymbol(symbol));
 
   public subscribe = (callback: Subscriber): (() => void) => {
     this.subscribers.add(callback);
@@ -84,7 +112,9 @@ class MarketDataStore {
     };
   };
 
-  
+  /**
+   * Processes a market tick and batches of UI notifications.
+   */
   public handleIncomingTick(tick: IPriceTick): void {
     if (
       !tick ||
@@ -92,9 +122,10 @@ class MarketDataStore {
       !isValidSymbol(tick.symbol) ||
       !Number.isSafeInteger(tick.seq)
     ) {
-      console.warn("Rejected invalid tick:", tick);
       return;
     }
+
+    const symbol = normalizeSymbol(tick.symbol);
 
     try {
       const bid = new Decimal(tick.bid);
@@ -106,24 +137,33 @@ class MarketDataStore {
         bid.isNegative() ||
         ask.lt(bid)
       ) {
-        console.warn("Rejected invalid prices:", tick);
         return;
       }
 
-      const previous = this.cache.get(tick.symbol);
+      const previous = this.cache.get(symbol);
 
-      // Ignore out-of-order ticks.
-      if (previous && tick.seq <= previous.seq) return;
+      // Ignore duplicate or out-of-order ticks.
+      if (previous && tick.seq <= previous.seq) {
+        return;
+      }
 
-      if (!this.baselines.has(tick.symbol)) {
-        this.baselines.set(tick.symbol, bid.toString());
+      // Register in the catalog without automatically displaying the symbol.
+      if (!this.symbols.includes(symbol)) {
+        this.symbols.push(symbol);
+      }
+
+      if (!this.baselines.has(symbol)) {
+        this.baselines.set(symbol, bid.toString());
       }
 
       let direction: ITickState["direction"] = "FLAT";
 
       if (previous) {
-        if (bid.gt(previous.bid)) direction = "UP";
-        else if (bid.lt(previous.bid)) direction = "DOWN";
+        if (bid.gt(previous.bid)) {
+          direction = "UP";
+        } else if (bid.lt(previous.bid)) {
+          direction = "DOWN";
+        }
       }
 
       const history = [
@@ -131,10 +171,11 @@ class MarketDataStore {
         bid.toString(),
       ].slice(-this.maxHistoryLength);
 
-      const baseline = new Decimal(this.baselines.get(tick.symbol)!);
+      const baseline = new Decimal(this.baselines.get(symbol)!);
 
-      this.cache.set(tick.symbol, {
+      const updatedState: ITickState = {
         ...tick,
+        symbol,
         bid: bid.toString(),
         ask: ask.toString(),
         spread: ask.minus(bid).toFixed(5),
@@ -142,26 +183,55 @@ class MarketDataStore {
         direction,
         isStale: false,
         history,
-      });
+      };
 
-      this.registerSymbol(tick.symbol);
-      this.notifySubscribers();
-    } catch (err) {
-      console.error("Failed to process tick:", tick, err);
+      this.cache.set(symbol, updatedState);
+
+      // Many ticks can arrive before the next frame.
+      // Notify React once rather than once for every tick.
+      this.scheduleNotification();
+    } catch (error) {
+      console.error("Failed to process market tick:", error);
     }
   }
 
   public setDisconnectedState(): void {
+    let changed = false;
+
     for (const [symbol, state] of this.cache) {
-      this.cache.set(symbol, {
-        ...state,
-        isStale: true,
-      });
+      if (!state.isStale) {
+        this.cache.set(symbol, {
+          ...state,
+          isStale: true,
+        });
+
+        changed = true;
+      }
     }
 
-    this.notifySubscribers();
+    if (changed) {
+      this.notifySubscribers();
+    }
   }
 
+  /**
+   * Merge high-frequency market updates into one notification per frame.
+   */
+  private scheduleNotification(): void {
+    if (this.notificationScheduled) return;
+
+    this.notificationScheduled = true;
+
+    requestAnimationFrame(() => {
+      this.notificationScheduled = false;
+      this.notifySubscribers();
+    });
+  }
+
+  /**
+   * Immediate notification for structural changes such as adding,
+   * removing, or reordering watchlist symbols.
+   */
   private notifySubscribers(): void {
     this.version++;
 
